@@ -1005,6 +1005,10 @@ export default function BudgetPage() {
               </div>
             </div>
             
+            # Fix Git ownership and safe directory issues
+            chown -R root:root "$APP_DIR"
+            git config --global --add safe.directory "$APP_DIR"
+            
             {/* Progress Bar */}
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
@@ -2146,6 +2150,13 @@ EOF
 
 build_application() {
     print_header "Building Application"
+    
+    # Ensure proper ownership and permissions
+    chown -R root:root "$APP_DIR"
+    chmod -R 755 "$APP_DIR"
+    
+    # Add safe directory for Git operations
+    git config --global --add safe.directory "$APP_DIR"
     
     cd "$APP_DIR"
     
