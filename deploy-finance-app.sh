@@ -244,17 +244,30 @@ create_app_user() {
 setup_repository() {
     print_header "Repository Setup"
     
-    # Create parent directory
-    mkdir -p "$(dirname "$APP_DIR")"
+    # Configure Git safe directory globally first
+    git config --global --add safe.directory "$APP_DIR" || true
     
-    if [[ -d "$APP_DIR" ]]; then
-        print_progress "Application directory exists, backing up..."
+    if [[ ! -d "$APP_DIR" ]]; then
+        print_progress "Creating application directory..."
+        mkdir -p "$APP_DIR"
+        
+        print_progress "Cloning repository..."
+        git clone "$REPO_URL" "$APP_DIR"
+        
+        print_success "Repository cloned successfully"
+    else
+        print_progress "Repository directory exists, updating..."
+        
+        # Create backup
         mkdir -p "$BACKUP_DIR"
         cp -r "$APP_DIR" "$BACKUP_DIR/finance-app-backup"
         print_success "Backup created at $BACKUP_DIR"
         
-        print_progress "Updating existing repository..."
+        # Navigate to app directory
         cd "$APP_DIR"
+        
+        # Ensure safe directory is configured for this specific path
+        git config --global --add safe.directory "$(pwd)" || true
         
         # Stash any local changes
         if git status --porcelain | grep -q .; then
@@ -265,17 +278,16 @@ setup_repository() {
         # Pull latest changes
         git fetch origin
         git reset --hard origin/main || git reset --hard origin/master
-        print_success "Repository updated"
-    else
-        print_progress "Cloning repository from $REPO_URL..."
-        git clone "$REPO_URL" "$APP_DIR"
-        print_success "Repository cloned to $APP_DIR"
+        
+        print_success "Repository updated successfully"
     fi
     
-    # Set proper ownership
-    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+    # Set proper ownership and permissions after all Git operations
+    chown -R root:root "$APP_DIR"
+    chmod -R 755 "$APP_DIR"
     
-    print_success "Repository setup completed"
+    # Ensure the directory is in Git's safe directories list
+    git config --global --add safe.directory "$APP_DIR" || true
 }
 
 #===============================================================================
@@ -1004,10 +1016,6 @@ export default function BudgetPage() {
                 </span>
               </div>
             </div>
-            
-            # Fix Git ownership and safe directory issues
-            chown -R root:root "$APP_DIR"
-            git config --global --add safe.directory "$APP_DIR"
             
             {/* Progress Bar */}
             <div className="w-full bg-gray-200 rounded-full h-2">
