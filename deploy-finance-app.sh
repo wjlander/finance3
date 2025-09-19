@@ -23,14 +23,14 @@ REPO_BRANCH="${REPO_BRANCH:-main}"
 readonly SCRIPT_NAME="Personal Finance App Deployment"
 readonly SCRIPT_VERSION="1.0"
 readonly LOG_FILE="/var/log/finance-app-deploy.log"
-readonly REPO_URL="${REPO_URL:-https://github.com/your-username/personal-finance-app.git}"
+readonly REPO_URL="${REPO_URL:-https://github.com/wjlander/finance3.git}"
 readonly APP_DIR="/var/www/finance"
 readonly BACKUP_DIR="/root/finance-app-backup-$(date +%Y%m%d-%H%M%S)"
 
 # Application Configuration
 APP_NAME="${APP_NAME:-personal-finance-app}"
 APP_USER="${APP_USER:-financeapp}"
-APP_PORT="${APP_PORT:-3000}"
+APP_PORT="${APP_PORT:-8080}"
 APP_DOMAIN="${APP_DOMAIN:-}"
 NODE_VERSION="${NODE_VERSION:-18}"
 
