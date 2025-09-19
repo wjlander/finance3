@@ -1,0 +1,147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budgets      Budget[]
+  debts        Debt[]
+  transactions Transaction[]
+  accounts     Account[]
+  savingsGoals SavingsGoal[]
+
+  @@map("users")
+}
+
+model Budget {
+  id              String   @id @default(cuid())
+  name            String
+  monthlyIncome   Float
+  payFrequency    String   @default("bi-weekly")
+  firstPayDate    DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  categories BudgetCategory[]
+
+  @@map("budgets")
+}
+
+model BudgetCategory {
+  id              String @id @default(cuid())
+  category        String
+  allocatedAmount Float
+  spentAmount     Float  @default(0)
+
+  budgetId String
+  budget   Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@map("budget_categories")
+}
+
+model Debt {
+  id                   String    @id @default(cuid())
+  name                 String
+  principal            Float
+  interestRate         Float
+  minimumPayment       Float
+  currentBalance       Float
+  paymentFrequency     String    @default("monthly")
+  nextPaymentDate      DateTime?
+  estimatedPayoffDate  DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  payments DebtPayment[]
+
+  @@map("debts")
+}
+
+model DebtPayment {
+  id              String   @id @default(cuid())
+  amount          Float
+  paymentDate     DateTime
+  principalAmount Float
+  interestAmount  Float
+  createdAt       DateTime @default(now())
+
+  debtId String
+  debt   Debt   @relation(fields: [debtId], references: [id], onDelete: Cascade)
+
+  @@map("debt_payments")
+}
+
+model Account {
+  id            String    @id @default(cuid())
+  name          String
+  type          String
+  balance       Float
+  bankName      String?
+  accountNumber String?
+  isActive      Boolean   @default(true)
+  lastSync      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  amount          Float
+  description     String
+  category        String
+  type            String   // income, expense, transfer
+  date            DateTime
+  isRecurring     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@map("transactions")
+}
+
+model SavingsGoal {
+  id            String   @id @default(cuid())
+  name          String
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  targetDate    DateTime
+  category      String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("savings_goals")
+}
