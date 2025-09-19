@@ -23,13 +23,14 @@ REPO_BRANCH="${REPO_BRANCH:-main}"
 readonly SCRIPT_NAME="Personal Finance App Deployment"
 readonly SCRIPT_VERSION="1.0"
 readonly LOG_FILE="/var/log/finance-app-deploy.log"
+readonly REPO_URL="${REPO_URL:-https://github.com/your-username/personal-finance-app.git}"
+readonly APP_DIR="/var/www/finance"
 readonly BACKUP_DIR="/root/finance-app-backup-$(date +%Y%m%d-%H%M%S)"
 
 # Application Configuration
 APP_NAME="${APP_NAME:-personal-finance-app}"
 APP_USER="${APP_USER:-financeapp}"
 APP_PORT="${APP_PORT:-3000}"
-APP_DIR="${APP_DIR:-/home/will/finance}"
 APP_DOMAIN="${APP_DOMAIN:-}"
 NODE_VERSION="${NODE_VERSION:-18}"
 
@@ -237,6 +238,44 @@ create_app_user() {
     chown "$APP_USER:$APP_USER" "$APP_DIR"
     
     print_success "Application directory created: $APP_DIR"
+}
+
+# Clone or update repository
+setup_repository() {
+    print_header "Repository Setup"
+    
+    # Create parent directory
+    mkdir -p "$(dirname "$APP_DIR")"
+    
+    if [[ -d "$APP_DIR" ]]; then
+        print_progress "Application directory exists, backing up..."
+        mkdir -p "$BACKUP_DIR"
+        cp -r "$APP_DIR" "$BACKUP_DIR/finance-app-backup"
+        print_success "Backup created at $BACKUP_DIR"
+        
+        print_progress "Updating existing repository..."
+        cd "$APP_DIR"
+        
+        # Stash any local changes
+        if git status --porcelain | grep -q .; then
+            print_warning "Local changes detected, stashing..."
+            git stash push -m "Auto-stash before deployment $(date)"
+        fi
+        
+        # Pull latest changes
+        git fetch origin
+        git reset --hard origin/main || git reset --hard origin/master
+        print_success "Repository updated"
+    else
+        print_progress "Cloning repository from $REPO_URL..."
+        git clone "$REPO_URL" "$APP_DIR"
+        print_success "Repository cloned to $APP_DIR"
+    fi
+    
+    # Set proper ownership
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+    
+    print_success "Repository setup completed"
 }
 
 #===============================================================================
@@ -2112,7 +2151,11 @@ build_application() {
     
     # Install dependencies
     print_progress "Installing dependencies..."
-    sudo -u "$APP_USER" npm install --production=false
+    sudo -u "$APP_USER" npm ci --production
+    
+    # Build the application
+    print_progress "Building application..."
+    sudo -u "$APP_USER" npm run build
     
     # Generate Prisma client
     print_progress "Generating Prisma client..."
@@ -2121,10 +2164,6 @@ build_application() {
     # Initialize database
     print_progress "Initializing database..."
     sudo -u "$APP_USER" npx prisma db push
-    
-    # Build application
-    print_progress "Building Next.js application..."
-    sudo -u "$APP_USER" npm run build
     
     print_success "Application built successfully"
 }
@@ -2443,6 +2482,7 @@ main() {
     
     # Main deployment phases
     install_dependencies
+    setup_repository
     install_nodejs
     create_app_user
     deploy_application
@@ -2463,6 +2503,8 @@ main() {
     print_header "Deployment Complete!"
     print_success "Personal Finance App deployed successfully!"
     print_success "Check the deployment report: ${BACKUP_DIR}/deployment-report.txt"
+    print_success "Application directory: $APP_DIR"
+    [[ -d "$BACKUP_DIR" ]] && print_success "Backup directory: $BACKUP_DIR"
     
     log "INFO" "Deployment completed successfully"
 }
