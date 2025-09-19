@@ -16,7 +16,7 @@ set -euo pipefail  # Exit on error, undefined vars, pipe failures
 #===============================================================================
 
 # Repository Configuration
-REPO_URL="${REPO_URL:-https://github.com/your-username/personal-finance-app.git}"
+REPO_URL="${REPO_URL:-https://github.com/wjlander/finance3.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
 # Basic Configuration
