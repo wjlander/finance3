@@ -289,7 +289,19 @@ setup_repository() {
     # Ensure the directory is in Git's safe directories list
     git config --global --add safe.directory "$APP_DIR" || true
 }
-
+    
+    # Clean up any existing node_modules and package-lock.json
+    if [[ -d "node_modules" ]]; then
+        print_progress "Cleaning existing node_modules..."
+        rm -rf node_modules
+    fi
+    
+    if [[ -f "package-lock.json" ]]; then
+        rm -f package-lock.json
+    fi
+    
+    # Install dependencies with proper permissions
+    npm install --omit=dev --unsafe-perm
 #===============================================================================
 # APPLICATION DEPLOYMENT FUNCTIONS
 #===============================================================================
