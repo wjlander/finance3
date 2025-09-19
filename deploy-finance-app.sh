@@ -300,8 +300,22 @@ setup_repository() {
         rm -f package-lock.json
     fi
     
-    # Install dependencies with proper permissions
-    npm install --omit=dev --unsafe-perm
+    
+    # Aggressive cleanup of node_modules with proper permissions
+    if [[ -d "node_modules" ]]; then
+        print_progress "Cleaning existing node_modules..."
+        chmod -R 755 node_modules 2>/dev/null || true
+        rm -rf node_modules
+    fi
+    
+    # Remove lock files
+    rm -f package-lock.json yarn.lock 2>/dev/null || true
+    
+    # Clear npm cache to avoid permission issues
+    npm cache clean --force 2>/dev/null || true
+    
+    # Install with proper flags
+    npm install --omit=dev --unsafe-perm --no-audit --no-fund
 #===============================================================================
 # APPLICATION DEPLOYMENT FUNCTIONS
 #===============================================================================
