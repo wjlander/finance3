@@ -295,6 +295,58 @@ setup_repository() {
     print_success "Repository setup completed"
 }
 
+# Deploy application function
+deploy_application() {
+    print_header "Deploying Application"
+    
+    print_progress "Starting application services..."
+    
+    # Start the Next.js application
+    cd "$APP_DIR"
+    
+    # Install PM2 globally if not already installed
+    if ! command_exists pm2; then
+        print_progress "Installing PM2 process manager..."
+        npm install -g pm2
+    fi
+    
+    # Create PM2 ecosystem file
+    cat > ecosystem.config.js << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'finance-app',
+    script: 'npm',
+    args: 'start',
+    cwd: '/var/www/finance',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000
+    }
+  }]
+}
+EOF
+    
+    # Stop any existing PM2 processes
+    pm2 delete finance-app 2>/dev/null || true
+    
+    # Start the application with PM2
+    print_progress "Starting application with PM2..."
+    pm2 start ecosystem.config.js
+    
+    # Save PM2 configuration
+    pm2 save
+    
+    # Setup PM2 to start on boot
+    pm2 startup systemd -u root --hp /root
+    
+    print_success "Application deployed and running on port 3000"
+    print_success "You can access it at: http://$(hostname -I | awk '{print $1}'):3000"
+}
+
 install_application_dependencies() {
     print_header "Installing Application Dependencies"
     
@@ -2185,367 +2237,4 @@ build_application() {
     print_progress "Building application..."
     sudo -u "$APP_USER" npm run build
     
-    # Generate Prisma client
-    print_progress "Generating Prisma client..."
-    sudo -u "$APP_USER" npx prisma generate
-    
-    # Initialize database
-    print_progress "Initializing database..."
-    sudo -u "$APP_USER" npx prisma db push
-    
-    print_success "Application built successfully"
-}
-
-#===============================================================================
-# SERVICE CONFIGURATION FUNCTIONS
-#===============================================================================
-
-configure_systemd_service() {
-    if [[ "$ENABLE_SYSTEMD" != "true" ]]; then
-        return 0
-    fi
-    
-    print_header "Configuring Systemd Service"
-    
-    # Create systemd service file
-    cat > "/etc/systemd/system/${APP_NAME}.service" << EOF
-[Unit]
-Description=Personal Finance App
-After=network.target
-
-[Service]
-Type=simple
-User=$APP_USER
-WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/npm start
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-Environment=PORT=$APP_PORT
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Enable and start service
-    systemctl daemon-reload
-    systemctl enable "$APP_NAME"
-    systemctl start "$APP_NAME"
-    
-    print_success "Systemd service configured and started"
-}
-
-configure_nginx() {
-    if [[ "$ENABLE_NGINX" != "true" ]]; then
-        return 0
-    fi
-    
-    print_header "Configuring Nginx Reverse Proxy"
-    
-    # Backup existing nginx config
-    backup_file "/etc/nginx/sites-available/default"
-    
-    # Create nginx configuration
-    local server_name="${APP_DOMAIN:-_}"
-    
-    cat > "/etc/nginx/sites-available/${APP_NAME}" << EOF
-server {
-    listen 80;
-    server_name $server_name;
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer-when-downgrade" always;
-    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval';" always;
-
-    # Gzip compression
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_proxied expired no-cache no-store private auth;
-    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/javascript;
-
-    location / {
-        proxy_pass http://127.0.0.1:$APP_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-    }
-
-    # Static files caching
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-        proxy_pass http://127.0.0.1:$APP_PORT;
-        proxy_set_header Host \$host;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-EOF
-
-    # Enable site
-    ln -sf "/etc/nginx/sites-available/${APP_NAME}" "/etc/nginx/sites-enabled/"
-    
-    # Remove default site if it exists
-    rm -f /etc/nginx/sites-enabled/default
-    
-    # Test nginx configuration
-    if nginx -t; then
-        systemctl restart nginx
-        print_success "Nginx configured and restarted"
-    else
-        print_error "Nginx configuration test failed"
-    fi
-}
-
-configure_ssl() {
-    if [[ "$ENABLE_SSL" != "true" ]] || [[ -z "$APP_DOMAIN" ]]; then
-        return 0
-    fi
-    
-    print_header "Configuring SSL Certificate"
-    
-    print_progress "Obtaining SSL certificate from Let's Encrypt..."
-    
-    # Get SSL certificate
-    if certbot --nginx -d "$APP_DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL"; then
-        print_success "SSL certificate obtained and configured"
-    else
-        print_warning "Failed to obtain SSL certificate. Check domain configuration."
-    fi
-}
-
-configure_firewall() {
-    if [[ "$ENABLE_FIREWALL" != "true" ]]; then
-        return 0
-    fi
-    
-    print_header "Configuring Firewall"
-    
-    # Allow HTTP and HTTPS
-    ufw allow 80/tcp comment "HTTP"
-    ufw allow 443/tcp comment "HTTPS"
-    
-    # Reload UFW
-    ufw reload
-    
-    print_success "Firewall configured for web traffic"
-}
-
-#===============================================================================
-# FINALIZATION FUNCTIONS
-#===============================================================================
-
-generate_deployment_report() {
-    print_header "Deployment Report Generation"
-    
-    local report_file="${BACKUP_DIR}/deployment-report.txt"
-    
-    cat > "$report_file" << EOF
-===============================================================================
-Personal Finance App Deployment Report
-Generated: $(date)
-===============================================================================
-
-APPLICATION INFORMATION:
-- App Name: $APP_NAME
-- App User: $APP_USER
-- App Directory: $APP_DIR
-- App Port: $APP_PORT
-- Domain: ${APP_DOMAIN:-"Not configured"}
-
-SERVICES STATUS:
-- Application Service: $(systemctl is-active "$APP_NAME" 2>/dev/null || echo "Not configured")
-- Nginx: $(systemctl is-active nginx 2>/dev/null || echo "Not running")
-- Database: SQLite (${DB_PATH})
-
-CONFIGURATION:
-- SSL Enabled: $ENABLE_SSL
-- Systemd Service: $ENABLE_SYSTEMD
-- Nginx Proxy: $ENABLE_NGINX
-- Firewall: $ENABLE_FIREWALL
-
-ACCESS INFORMATION:
-- Local URL: http://localhost:$APP_PORT
-- Public URL: http://$(hostname -I | awk '{print $1}')
-$(if [[ -n "$APP_DOMAIN" ]]; then echo "- Domain URL: http://$APP_DOMAIN"; fi)
-$(if [[ "$ENABLE_SSL" == "true" ]]; then echo "- HTTPS URL: https://$APP_DOMAIN"; fi)
-
-IMPORTANT FILES:
-- Application Directory: $APP_DIR
-- Nginx Configuration: /etc/nginx/sites-available/$APP_NAME
-- Systemd Service: /etc/systemd/system/$APP_NAME.service
-- Database: $DB_PATH
-- Deployment Log: $LOG_FILE
-
-MANAGEMENT COMMANDS:
-- View logs: sudo journalctl -u $APP_NAME -f
-- Restart app: sudo systemctl restart $APP_NAME
-- Check status: sudo systemctl status $APP_NAME
-- Nginx reload: sudo systemctl reload nginx
-
-NEXT STEPS:
-1. Test the application at the provided URLs
-2. Configure domain DNS if using custom domain
-3. Set up regular database backups
-4. Configure monitoring and alerting
-5. Review and customize application settings
-
-===============================================================================
-EOF
-
-    print_success "Deployment report generated: $report_file"
-}
-
-show_deployment_summary() {
-    print_header "Deployment Summary"
-    
-    echo
-    print_success "✓ Personal Finance App deployed successfully!"
-    print_success "✓ Application running on port $APP_PORT"
-    print_success "✓ Database initialized with SQLite"
-    [[ "$ENABLE_NGINX" == "true" ]] && print_success "✓ Nginx reverse proxy configured"
-    [[ "$ENABLE_SYSTEMD" == "true" ]] && print_success "✓ Systemd service enabled"
-    [[ "$ENABLE_SSL" == "true" ]] && print_success "✓ SSL certificate configured"
-    
-    echo
-    print_status "${CYAN}" "🌐 ACCESS YOUR APPLICATION:"
-    echo "   Local: http://localhost:$APP_PORT"
-    echo "   Server: http://$(hostname -I | awk '{print $1}')"
-    [[ -n "$APP_DOMAIN" ]] && echo "   Domain: http://$APP_DOMAIN"
-    [[ "$ENABLE_SSL" == "true" ]] && echo "   HTTPS: https://$APP_DOMAIN"
-    
-    echo
-    print_status "${CYAN}" "📊 MANAGEMENT COMMANDS:"
-    echo "   View logs: sudo journalctl -u $APP_NAME -f"
-    echo "   Restart: sudo systemctl restart $APP_NAME"
-    echo "   Status: sudo systemctl status $APP_NAME"
-    
-    echo
-    print_warning "⚠ Remember to:"
-    print_warning "  • Configure your domain's DNS if using a custom domain"
-    print_warning "  • Set up regular database backups"
-    print_warning "  • Review firewall settings for your environment"
-    
-    echo
-}
-
-show_help() {
-    cat << EOF
-$SCRIPT_NAME v$SCRIPT_VERSION
-
-USAGE:
-    sudo bash $0 [OPTIONS]
-
-ENVIRONMENT VARIABLES:
-    APP_NAME            Application name (default: personal-finance-app)
-    APP_USER            Application user (default: financeapp)
-    APP_PORT            Application port (default: 3000)
-    APP_DIR             Application directory (default: /opt/personal-finance-app)
-    APP_DOMAIN          Domain name for the application
-    NODE_VERSION        Node.js version (default: 18)
-    
-    ENABLE_SSL          Enable SSL with Let's Encrypt (default: false)
-    SSL_EMAIL           Email for SSL certificate
-    
-    ENABLE_SYSTEMD      Enable systemd service (default: true)
-    ENABLE_NGINX        Enable Nginx reverse proxy (default: true)
-    ENABLE_FIREWALL     Configure firewall rules (default: true)
-
-EXAMPLES:
-    # Basic deployment
-    sudo bash $0
-
-    # With custom domain and SSL
-    sudo APP_DOMAIN=myfinance.com ENABLE_SSL=true SSL_EMAIL=admin@myfinance.com bash $0
-
-    # Custom configuration
-    sudo APP_PORT=8080 APP_USER=webapp bash $0
-
-FEATURES:
-    • Complete Next.js Personal Finance Application
-    • SQLite database with Prisma ORM
-    • Nginx reverse proxy with security headers
-    • Systemd service for process management
-    • Optional SSL with Let's Encrypt
-    • Firewall configuration
-    • Production-ready optimization
-
-For more information, visit: https://github.com/your-repo/finance-app-deploy
-EOF
-}
-
-#===============================================================================
-# MAIN EXECUTION FUNCTION
-#===============================================================================
-
-main() {
-    # Handle help option
-    if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
-        show_help
-        exit 0
-    fi
-    
-    # Initialize
-    print_header "$SCRIPT_NAME v$SCRIPT_VERSION"
-    print_progress "Starting Personal Finance App deployment..."
-    
-    # Create log file and backup directory
-    mkdir -p "$(dirname "$LOG_FILE")"
-    mkdir -p "$BACKUP_DIR"
-    touch "$LOG_FILE"
-    
-    log "INFO" "Starting $SCRIPT_NAME v$SCRIPT_VERSION"
-    log "INFO" "Backup directory: $BACKUP_DIR"
-    
-    # Pre-flight checks
-    check_root
-    validate_configuration
-    
-    # Main deployment phases
-    install_dependencies
-    setup_repository
-    install_nodejs
-    create_app_user
-    deploy_application
-    create_database_schema
-    create_application_files
-    install_application_dependencies
-    build_application
-    
-    # Service configuration
-    configure_systemd_service
-    configure_nginx
-    configure_ssl
-    configure_firewall
-    
-    # Finalization
-    generate_deployment_report
-    show_deployment_summary
-    
-    print_header "Deployment Complete!"
-    print_success "Personal Finance App deployed successfully!"
-    print_success "Check the deployment report: ${BACKUP_DIR}/deployment-report.txt"
-    print_success "Application directory: $APP_DIR"
-    [[ -d "$BACKUP_DIR" ]] && print_success "Backup directory: $BACKUP_DIR"
-    
-    log "INFO" "Deployment completed successfully"
-}
-
-#===============================================================================
-# SCRIPT EXECUTION
-#===============================================================================
-
-# Trap errors and cleanup
-trap 'print_error "Deployment failed at line $LINENO"' ERR
-
-# Execute main function
-main "$@"
-
-exit 0
+    # Generate
