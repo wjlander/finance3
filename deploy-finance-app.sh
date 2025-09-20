@@ -314,10 +314,10 @@ install_application_dependencies() {
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.1",
     "lucide-react": "^0.294.0",
     "next": "14.0.4",
     "react": "^18.2.0",
@@ -331,7 +331,6 @@ install_application_dependencies() {
     "eslint": "^8.56.0",
     "eslint-config-next": "14.0.4",
     "postcss": "^8.4.32",
-    "prisma": "^5.7.1",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.3.3"
   }
