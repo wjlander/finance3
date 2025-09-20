@@ -2238,3 +2238,38 @@ build_application() {
     sudo -u "$APP_USER" npm run build
     
     # Generate
+}
+
+# Main execution
+main() {
+    print_header "Personal Finance App Deployment"
+    
+    # Check prerequisites
+    check_prerequisites
+    
+    # Setup application
+    setup_application_directory
+    create_package_json
+    create_next_config
+    create_tailwind_config
+    create_postcss_config
+    create_typescript_config
+    
+    # Create source files
+    create_app_structure
+    create_components
+    create_pages
+    
+    # Install and build
+    install_dependencies
+    build_application
+    
+    # Deploy
+    deploy_application
+    
+    print_success "Deployment completed successfully!"
+    print_success "Application is running at: http://localhost:3000"
+}
+
+# Execute main function
+main "$@"
