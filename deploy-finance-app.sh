@@ -286,36 +286,34 @@ setup_repository() {
     chown -R root:root "$APP_DIR"
     chmod -R 755 "$APP_DIR"
     
+    # Ensure the directory is writable for npm operations
+    chmod -R u+w "$APP_DIR"
+    
     # Ensure the directory is in Git's safe directories list
     git config --global --add safe.directory "$APP_DIR" || true
+    
+    print_success "Repository setup completed"
 }
+
+install_application_dependencies() {
+    print_header "Installing Application Dependencies"
     
-    # Clean up any existing node_modules and package-lock.json
-    if [[ -d "node_modules" ]]; then
-        print_progress "Cleaning existing node_modules..."
-        rm -rf node_modules
-    fi
+    cd "$APP_DIR"
     
-    if [[ -f "package-lock.json" ]]; then
-        rm -f package-lock.json
-    fi
+    print_progress "Installing dependencies..."
     
+    # Ensure proper permissions for npm operations
+    chmod -R u+w "$APP_DIR"
     
-    # Aggressive cleanup of node_modules with proper permissions
-    if [[ -d "node_modules" ]]; then
-        print_progress "Cleaning existing node_modules..."
-        chmod -R 755 node_modules 2>/dev/null || true
-        rm -rf node_modules
-    fi
+    # Install dependencies
+    npm install --omit=dev --unsafe-perm --no-audit --no-fund --verbose
     
-    # Remove lock files
-    rm -f package-lock.json yarn.lock 2>/dev/null || true
+    print_progress "Building application..."
+    npm run build
     
-    # Clear npm cache to avoid permission issues
-    npm cache clean --force 2>/dev/null || true
-    
-    # Install with proper flags
-    npm install --omit=dev --unsafe-perm --no-audit --no-fund
+    print_success "Application dependencies installed and built"
+}
+
 #===============================================================================
 # APPLICATION DEPLOYMENT FUNCTIONS
 #===============================================================================
@@ -2533,6 +2531,7 @@ main() {
     deploy_application
     create_database_schema
     create_application_files
+    install_application_dependencies
     build_application
     
     # Service configuration
