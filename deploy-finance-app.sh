@@ -139,6 +139,95 @@ backup_file() {
 }
 
 #===============================================================================
+# PREREQUISITE CHECK FUNCTIONS
+#===============================================================================
+
+check_prerequisites() {
+    print_header "Checking Prerequisites"
+    
+    # Check if running as root
+    if [[ $EUID -ne 0 ]]; then
+        print_error "This script must be run as root (use sudo)"
+    fi
+    
+    # Check Ubuntu version
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        if [[ "$ID" != "ubuntu" ]]; then
+            print_error "This script is designed for Ubuntu only. Detected: $ID"
+        fi
+        print_success "Detected Ubuntu $VERSION_ID"
+    else
+        print_error "Cannot detect Ubuntu version"
+    fi
+    
+    # Check internet connectivity
+    if ! ping -c 1 google.com &> /dev/null; then
+        print_error "No internet connection available"
+    fi
+    
+    print_success "Prerequisites check completed"
+}
+
+setup_environment() {
+    print_header "Setting up Environment"
+    
+    # Update system packages
+    print_progress "Updating system packages..."
+    apt-get update -qq
+    
+    # Install essential packages
+    print_progress "Installing essential packages..."
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+        curl wget git vim nano htop tree unzip zip \
+        software-properties-common apt-transport-https ca-certificates \
+        gnupg lsb-release build-essential
+    
+    print_success "Environment setup completed"
+}
+
+install_nodejs() {
+    print_header "Installing Node.js"
+    
+    # Check if Node.js is already installed
+    if command_exists node; then
+        local node_version=$(node --version)
+        print_warning "Node.js is already installed: $node_version"
+        return 0
+    fi
+    
+    # Install NodeSource repository
+    print_progress "Adding NodeSource repository..."
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    
+    # Install Node.js
+    print_progress "Installing Node.js..."
+    apt-get install -y nodejs
+    
+    # Verify installation
+    if command_exists node && command_exists npm; then
+        print_success "Node.js $(node --version) and npm $(npm --version) installed"
+    else
+        print_error "Node.js installation failed"
+    fi
+}
+
+setup_application_directory() {
+    print_header "Setting up Application Directory"
+    
+    # Create application directory
+    print_progress "Creating application directory: $APP_DIR"
+    mkdir -p "$APP_DIR"
+    cd "$APP_DIR"
+    
+    # Set proper permissions
+    chown -R www-data:www-data "$APP_DIR"
+    chmod -R 755 "$APP_DIR"
+    
+    print_success "Application directory created: $APP_DIR"
+}
+
+#===============================================================================
 # VALIDATION FUNCTIONS
 #===============================================================================
 
@@ -2239,6 +2328,10 @@ build_application() {
     
     # Generate
 }
+
+#===============================================================================
+# MAIN EXECUTION FUNCTIONS
+#===============================================================================
 
 # Main execution
 main() {
