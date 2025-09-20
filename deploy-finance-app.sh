@@ -300,30 +300,6 @@ install_application_dependencies() {
     
     cd "$APP_DIR"
     
-    print_progress "Installing dependencies..."
-    
-    # Ensure proper permissions for npm operations
-    chmod -R u+w "$APP_DIR"
-    
-    # Install dependencies
-    npm install --unsafe-perm --no-audit --no-fund --loglevel verbose
-    
-    print_progress "Building application..."
-    npm run build
-    
-    print_success "Application dependencies installed and built"
-}
-
-#===============================================================================
-# APPLICATION DEPLOYMENT FUNCTIONS
-#===============================================================================
-
-deploy_application() {
-    print_header "Deploying Personal Finance Application"
-    
-    # Create application structure
-    print_progress "Creating application structure..."
-    
     # Create package.json
     cat > "$APP_DIR/package.json" << 'EOF'
 {
