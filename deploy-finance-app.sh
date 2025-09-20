@@ -1931,18 +1931,21 @@ EOF
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import { Calendar, Clock, DollarSign, AlertTriangle, CheckCircle, Plus, Bell, CreditCard } from 'lucide-react'
 
 interface Bill {
   id: string
   name: string
   amount: number
   dueDate: string
+  frequency: 'monthly' | 'quarterly' | 'yearly' | 'weekly'
   category: string
-  status: 'paid' | 'pending' | 'overdue'
+  isPaid: boolean
+  isOverdue: boolean
+  paymentMethod: string
   isRecurring: boolean
-  frequency: string
-  account: string
+  nextDueDate: string
+  lastPaidDate?: string
 }
 
 export default function BillsPage() {
@@ -1950,129 +1953,71 @@ export default function BillsPage() {
     {
       id: '1',
       name: 'Rent',
-      amount: 1200.00,
-      dueDate: '2024-02-01',
+      amount: 1200,
+      dueDate: '2024-01-01',
+      frequency: 'monthly',
       category: 'Housing',
-      status: 'pending',
+      isPaid: true,
+      isOverdue: false,
+      paymentMethod: 'Bank Transfer',
       isRecurring: true,
-      frequency: 'Monthly',
-      account: 'Checking'
+      nextDueDate: '2024-02-01',
+      lastPaidDate: '2024-01-01'
     },
     {
       id: '2',
       name: 'Electric Bill',
       amount: 89.50,
-      dueDate: '2024-01-25',
+      dueDate: '2024-01-15',
+      frequency: 'monthly',
       category: 'Utilities',
-      status: 'paid',
+      isPaid: false,
+      isOverdue: false,
+      paymentMethod: 'Credit Card',
       isRecurring: true,
-      frequency: 'Monthly',
-      account: 'Checking'
-    },
-    {
-      id: '3',
-      name: 'Internet',
-      amount: 65.00,
-      dueDate: '2024-01-28',
-      category: 'Utilities',
-      status: 'pending',
-      isRecurring: true,
-      frequency: 'Monthly',
-      account: 'Checking'
-    },
-    {
-      id: '4',
-      name: 'Car Insurance',
-      amount: 125.00,
-      dueDate: '2024-01-20',
-      category: 'Insurance',
-      status: 'overdue',
-      isRecurring: true,
-      frequency: 'Monthly',
-      account: 'Checking'
-    },
-    {
-      id: '5',
-      name: 'Phone Bill',
-      amount: 45.00,
-      dueDate: '2024-02-05',
-      category: 'Utilities',
-      status: 'pending',
-      isRecurring: true,
-      frequency: 'Monthly',
-      account: 'Checking'
-    },
-    {
-      id: '6',
-      name: 'Gym Membership',
-      amount: 29.99,
-      dueDate: '2024-01-30',
-      category: 'Health & Fitness',
-      status: 'pending',
-      isRecurring: true,
-      frequency: 'Monthly',
-      account: 'Credit Card'
+      nextDueDate: '2024-01-15'
     }
   ])
 
-  const totalPending = bills.filter(b => b.status === 'pending').reduce((sum, b) => sum + b.amount, 0)
-  const totalPaid = bills.filter(b => b.status === 'paid').reduce((sum, b) => sum + b.amount, 0)
-  const overdueCount = bills.filter(b => b.status === 'overdue').length
-  const upcomingCount = bills.filter(b => {
-    const dueDate = new Date(b.dueDate)
-    const today = new Date()
-    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return diffDays <= 7 && b.status === 'pending'
-  }).length
+  const [selectedFilter, setSelectedFilter] = useState('all')
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <CheckCircle className="w-5 h-5 text-green-600" />
-      case 'overdue':
-        return <AlertCircle className="w-5 h-5 text-red-600" />
-      case 'pending':
-        return <Clock className="w-5 h-5 text-yellow-600" />
-      default:
-        return <Clock className="w-5 h-5 text-gray-600" />
+  const totalMonthlyBills = bills.reduce((sum, bill) => sum + bill.amount, 0)
+  const paidBills = bills.filter(bill => bill.isPaid)
+  const unpaidBills = bills.filter(bill => !bill.isPaid)
+  const overdueBills = bills.filter(bill => bill.isOverdue)
+
+  const totalPaid = paidBills.reduce((sum, bill) => sum + bill.amount, 0)
+  const totalUnpaid = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0)
+  const totalOverdue = overdueBills.reduce((sum, bill) => sum + bill.amount, 0)
+
+  const filteredBills = bills.filter(bill => {
+    switch (selectedFilter) {
+      case 'paid': return bill.isPaid
+      case 'unpaid': return !bill.isPaid
+      case 'overdue': return bill.isOverdue
+      default: return true
     }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return 'bg-green-100 text-green-800'
-      case 'overdue':
-        return 'bg-red-100 text-red-800'
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const getDaysUntilDue = (dueDate: string) => {
-    const today = new Date()
-    const due = new Date(dueDate)
-    const diffTime = due.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
+  })
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Bills & Payments</h1>
-      
-      {/* Summary Cards */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Bills & Reminders</h1>
+        <button className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2">
+          <Plus className="w-4 h-4" />
+          <span>Add Bill</span>
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Pending Bills</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium text-gray-600">Total Monthly Bills</CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              ${totalPending.toLocaleString()}
+            <div className="text-2xl font-bold text-blue-600">
+              ${totalMonthlyBills.toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -2086,110 +2031,157 @@ export default function BillsPage() {
             <div className="text-2xl font-bold text-green-600">
               ${totalPaid.toLocaleString()}
             </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {paidBills.length} bill{paidBills.length !== 1 ? 's' : ''} paid
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Pending Bills</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">
+              ${totalUnpaid.toLocaleString()}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {unpaidBills.length} bill{unpaidBills.length !== 1 ? 's' : ''} pending
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Overdue Bills</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {overdueCount}
+              ${totalOverdue.toLocaleString()}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Due This Week</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {upcomingCount}
-            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {overdueBills.length} bill{overdueBills.length !== 1 ? 's' : ''} overdue
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Bills List */}
       <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Bills</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {bills
-              .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-              .map((bill) => {
-                const daysUntilDue = getDaysUntilDue(bill.dueDate)
-                
-                return (
-                  <div key={bill.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      {getStatusIcon(bill.status)}
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <p className="font-medium">{bill.name}</p>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
-                            {bill.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
-                          <span>{bill.category}</span>
-                          <span>•</span>
-                          <span>{bill.account}</span>
-                          <span>•</span>
-                          <span>{bill.frequency}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="font-bold text-lg">${bill.amount.toFixed(2)}</div>
-                      <div className="text-sm text-gray-500">
-                        {bill.status === 'overdue' ? (
-                          <span className="text-red-600 font-medium">
-                            {Math.abs(daysUntilDue)} days overdue
-                          </span>
-                        ) : bill.status === 'paid' ? (
-                          <span className="text-green-600">Paid</span>
-                        ) : (
-                          <span>
-                            Due {new Date(bill.dueDate).toLocaleDateString()}
-                            {daysUntilDue <= 7 && daysUntilDue > 0 && (
-                              <span className="text-yellow-600 font-medium ml-1">
-                                ({daysUntilDue} days)
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'all', label: 'All Bills', count: bills.length },
+              { key: 'unpaid', label: 'Unpaid', count: unpaidBills.length },
+              { key: 'paid', label: 'Paid', count: paidBills.length },
+              { key: 'overdue', label: 'Overdue', count: overdueBills.length }
+            ].map(filter => (
+              <button
+                key={filter.key}
+                onClick={() => setSelectedFilter(filter.key)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedFilter === filter.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {filter.label} ({filter.count})
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-              <div className="font-medium">Add New Bill</div>
-              <div className="text-sm text-gray-500">Set up a new recurring bill</div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {filteredBills.map((bill) => (
+          <Card key={bill.id} className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-full bg-blue-100 text-blue-600">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">{bill.name}</CardTitle>
+                  <p className="text-sm text-gray-500">{bill.category}</p>
+                </div>
+              </div>
+              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
+                bill.isPaid ? 'text-green-600 bg-green-100' : 
+                bill.isOverdue ? 'text-red-600 bg-red-100' : 'text-yellow-600 bg-yellow-100'
+              }`}>
+                {bill.isPaid ? <CheckCircle className="w-3 h-3" /> : 
+                 bill.isOverdue ? <AlertTriangle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                <span>{bill.isPaid ? 'Paid' : bill.isOverdue ? 'Overdue' : 'Pending'}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">${bill.amount}</div>
+                  <div className="text-sm text-gray-500">
+                    {bill.frequency} • {bill.paymentMethod}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium">
+                    {bill.isPaid ? 'Paid' : 'Due'}: {new Date(bill.isPaid ? bill.lastPaidDate! : bill.nextDueDate).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+              {bill.isRecurring && (
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Bell className="w-4 h-4" />
+                  <span>Recurring {bill.frequency}</span>
+                </div>
+              )}
+
+              <div className="flex space-x-2 pt-2">
+                {!bill.isPaid ? (
+                  <>
+                    <button className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors">
+                      Mark as Paid
+                    </button>
+                    <button className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">
+                      Pay Now
+                    </button>
+                  </>
+                ) : (
+                  <button className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors">
+                    View Receipt
+                  </button>
+                )}
+                <button className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors">
+                  Edit
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {filteredBills.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No bills found</h3>
+            <p className="text-gray-500 mb-4">
+              {selectedFilter === 'all' 
+                ? "You haven't added any bills yet."
+                : `No bills match the "${selectedFilter}" filter.`}
+            </p>
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors">
+              Add Your First Bill
             </button>
-            <button className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-              <div className="font-medium">Pay All Pending</div>
-              <div className="text-sm text-gray-500">Pay all pending bills at once</div>
-            </button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+EOF
+
     print_success "Application files created"
 }
 
