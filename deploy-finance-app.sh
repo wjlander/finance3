@@ -627,6 +627,20 @@ EOF
 create_application_files() {
     print_header "Creating Application Files"
     
+    # Create lib directory and database connection file
+    mkdir -p "$APP_DIR/lib"
+    cat > "$APP_DIR/lib/db.ts" << 'EOF'
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+EOF
+
     # Create global styles
     cat > "$APP_DIR/src/app/globals.css" << 'EOF'
 @tailwind base;
@@ -2176,20 +2190,6 @@ export default function BillsPage() {
               <div className="font-medium">Pay All Pending</div>
               <div className="text-sm text-gray-500">Pay all pending bills at once</div>
             </button>
-            <button className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-              <div className="font-medium">Set Reminders</div>
-              <div className="text-sm text-gray-500">Configure bill payment reminders</div>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-EOF
-    # Set ownership
-    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-    
     print_success "Application files created"
 }
 
