@@ -438,6 +438,19 @@ EOF
     mkdir -p "$APP_DIR/prisma"
     mkdir -p "$APP_DIR/lib"
     mkdir -p "$APP_DIR/src/app/budget"
+    # Create database connection file
+    cat > "$APP_DIR/lib/db.ts" << 'EOF'
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+EOF
+
     mkdir -p "$APP_DIR/src/app/debts"
     mkdir -p "$APP_DIR/src/app/api/dashboard"
 
