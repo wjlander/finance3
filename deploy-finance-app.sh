@@ -306,7 +306,7 @@ install_application_dependencies() {
     chmod -R u+w "$APP_DIR"
     
     # Install dependencies
-    npm install --omit=dev --unsafe-perm --no-audit --no-fund --verbose
+    npm install --unsafe-perm --no-audit --no-fund --loglevel verbose
     
     print_progress "Building application..."
     npm run build
