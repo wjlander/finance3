@@ -2181,6 +2181,11 @@ export default function BillsPage() {
   )
 }
 EOF
+    
+    # Debug: List the created files
+    print_progress "Verifying file structure..."
+    ls -la "$APP_DIR/lib/" || print_warning "lib directory not found"
+    ls -la "$APP_DIR/src/app/api/" || print_warning "api directory not found"
 
     print_success "Application files created"
 }
